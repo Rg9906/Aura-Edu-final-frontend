@@ -1,0 +1,9 @@
+{
+  "name": "AURA-EDU",
+  "description": "Neuroadaptive rehabilitation system for real-time cognitive monitoring and feedback.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

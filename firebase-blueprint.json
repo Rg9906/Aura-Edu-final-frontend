@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile and system settings.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique Firebase Auth ID." },
+        "displayName": { "type": "string", "description": "User's display name." },
+        "email": { "type": "string", "format": "email", "description": "User's email address." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User's role in the system." },
+        "sensitivity": { "type": "number", "description": "System detection sensitivity (0-100)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp." }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Session": {
+      "title": "Aura Session",
+      "description": "A recorded session of system usage.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID." },
+        "userId": { "type": "string", "description": "ID of the user who performed the session." },
+        "startTime": { "type": "string", "format": "date-time", "description": "Session start time." },
+        "endTime": { "type": "string", "format": "date-time", "description": "Session end time." },
+        "sensEdScore": { "type": "number", "description": "Calculated SENS-ED score for the session." },
+        "successRate": { "type": "number", "description": "Detection success rate (0-1)." }
+      },
+      "required": ["id", "userId", "startTime"]
+    },
+    "Event": {
+      "title": "Aura Event",
+      "description": "A specific detection event during a session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique event ID." },
+        "sessionId": { "type": "string", "description": "ID of the parent session." },
+        "userId": { "type": "string", "description": "ID of the user." },
+        "type": { "type": "string", "enum": ["obstacle", "warning", "info"], "description": "Type of event." },
+        "direction": { "type": "string", "enum": ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"], "description": "Direction of detection." },
+        "urgency": { "type": "number", "description": "Urgency level (1-5)." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Event timestamp." }
+      },
+      "required": ["id", "sessionId", "userId", "type", "direction", "urgency", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Rehabilitation session records."
+    },
+    "/sessions/{sessionId}/events/{eventId}": {
+      "schema": "Event",
+      "description": "Individual events within a session."
+    }
+  }
+}

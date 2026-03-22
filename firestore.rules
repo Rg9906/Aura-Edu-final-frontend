@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (matches request.auth.uid)
+    // Fields:
+    //   - uid: string (required, immutable) - Unique ID
+    //   - displayName: string (optional) - User's name
+    //   - email: string (required, format: email) - User's email
+    //   - role: string (required, enum: ["user", "admin"]) - User's role
+    //   - sensitivity: number (optional, range: 0-100) - System sensitivity
+    //   - createdAt: timestamp (required, immutable) - Creation time
+    //
+    // Collection: /sessions/{sessionId}
+    // Document ID: sessionId
+    // Fields:
+    //   - id: string (required, immutable) - Session ID
+    //   - userId: string (required, immutable) - Owner ID
+    //   - startTime: timestamp (required, immutable) - Start time
+    //   - endTime: timestamp (optional) - End time
+    //   - sensEdScore: number (optional) - Score
+    //   - successRate: number (optional) - Success rate
+    //
+    // Collection: /sessions/{sessionId}/events/{eventId}
+    // Document ID: eventId
+    // Fields:
+    //   - id: string (required, immutable) - Event ID
+    //   - sessionId: string (required, immutable) - Parent session ID
+    //   - userId: string (required, immutable) - Owner ID
+    //   - type: string (required, enum: ["obstacle", "warning", "info"]) - Event type
+    //   - direction: string (required, enum: ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"]) - Direction
+    //   - urgency: number (required, range: 1-5) - Urgency level
+    //   - timestamp: timestamp (required, immutable) - Event time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "rgsaranvishakan2006@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['user', 'admin'] &&
+             (!('sensitivity' in data) || (data.sensitivity is number && data.sensitivity >= 0 && data.sensitivity <= 100));
+    }
+
+    function isValidSession(data) {
+      return hasRequiredFields(['id', 'userId', 'startTime']) &&
+             data.userId == request.auth.uid &&
+             data.startTime is timestamp &&
+             (!('endTime' in data) || data.endTime is timestamp) &&
+             (!('sensEdScore' in data) || data.sensEdScore is number) &&
+             (!('successRate' in data) || (data.successRate is number && data.successRate >= 0 && data.successRate <= 1));
+    }
+
+    function isValidEvent(data) {
+      return hasRequiredFields(['id', 'sessionId', 'userId', 'type', 'direction', 'urgency', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.type in ['obstacle', 'warning', 'info'] &&
+             data.direction in ['front', 'front-right', 'right', 'back-right', 'back', 'back-left', 'left', 'front-left'] &&
+             data.urgency is number && data.urgency >= 1 && data.urgency <= 5 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidSession(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && isValidSession(request.resource.data);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+
+      match /events/{eventId} {
+        allow read: if isOwner(resource.data.userId) || isAdmin();
+        allow create: if isAuthenticated() && isValidEvent(request.resource.data);
+        allow update: if isOwner(resource.data.userId) && isValidEvent(request.resource.data);
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+    }
+  }
+}
